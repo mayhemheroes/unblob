@@ -1,4 +1,4 @@
-FROM python:3.14-slim-bookworm
+FROM python:3.8-slim
 
 RUN mkdir -p /data/input /data/output
 RUN useradd -m unblob
@@ -6,17 +6,32 @@ RUN chown -R unblob /data
 
 WORKDIR /data/output
 
-# Enable backports, required to get upx package
-RUN printf "deb http://deb.debian.org/debian bookworm-backports main\n" \
-    > /etc/apt/sources.list.d/backports.list
-
-COPY install-deps.sh /
-RUN sh -xeu /install-deps.sh
-
-# You MUST do an uv build before to have the wheel to copy & install here (CI action will do this when building)
-COPY dist/*.whl /tmp/
-RUN pip --disable-pip-version-check install --upgrade pip
-RUN pip install /tmp/unblob*.whl --prefix /usr/local
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    curl \
+    e2fsprogs \
+    gcc \
+    git \
+    img2simg \
+    liblzo2-dev \
+    lz4 \
+    lziprecover \
+    lzop \
+    p7zip-full \
+    unar \
+    xz-utils \
+    zlib1g-dev \
+    libmagic1 \
+    zstd
+RUN curl -L -o sasquatch_1.0_amd64.deb https://github.com/onekey-sec/sasquatch/releases/download/sasquatch-v1.0/sasquatch_1.0_amd64.deb \
+    && dpkg -i sasquatch_1.0_amd64.deb \
+    && rm -f sasquatch_1.0_amd64.deb
 
 USER unblob
+ENV PATH="/home/unblob/.local/bin:${PATH}"
+
+# You MUST do a poetry build before to have the wheel to copy & install here (CI action will do this when building)
+COPY dist/*.whl /tmp/
+RUN pip --disable-pip-version-check install --upgrade pip
+RUN pip install /tmp/unblob*.whl
+
 ENTRYPOINT ["unblob"]
